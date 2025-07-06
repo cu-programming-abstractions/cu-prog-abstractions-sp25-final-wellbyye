@@ -1,205 +1,86 @@
-/**
- * Dungeon Pathfinder - Maze Generation
- * 
- * This file implements recursive backtracking maze generation.
- * The algorithm creates a "perfect maze" - exactly one path between any two points.
- */
-
 #include "generator.h"
+#include <vector>
+#include <string>
 #include <random>
+#include <ctime>
 #include <algorithm>
-#include <iostream>
 
 using namespace std;
 
-// Directions for maze carving: North, East, South, West (2-step moves)
-const int CARVE_DIRECTIONS[4][2] = {{-2, 0}, {0, 2}, {2, 0}, {0, -2}};
+// Directions: up, down, left, right — two steps to allow walls between paths
+const vector<pair<int, int>> DIRECTIONS = {
+    {-2, 0}, {2, 0}, {0, -2}, {0, 2}
+};
 
-// Random number generator (better than rand())
-static mt19937 rng(random_device{}());
-
-/**
- * Helper function: Check if a coordinate is within bounds
- */
-bool isInBounds(int row, int col, int rows, int cols) {
-    return row >= 0 && row < rows && col >= 0 && col < cols;
+// Helper: Check if a cell is valid and carveable
+bool isValidCell(int row, int col, int rows, int cols) {
+    return row > 0 && row < rows - 1 &&
+           col > 0 && col < cols - 1 &&
+           row % 2 == 1 && col % 2 == 1;
 }
 
-/**
- * Helper function: Check if a cell has been visited (carved)
- * In our representation, carved cells contain ' ' (space)
- */
-bool isCarved(const vector<string>& maze, int row, int col) {
-    return maze[row][col] == ' ';
+// Helper: Carve a passage between two cells by removing the wall
+void carvePassage(vector<string>& dungeon, int fromRow, int fromCol, int toRow, int toCol) {
+    int wallRow = (fromRow + toRow) / 2;
+    int wallCol = (fromCol + toCol) / 2;
+    dungeon[toRow][toCol] = ' ';
+    dungeon[wallRow][wallCol] = ' ';
 }
 
-/**
- * Helper function: Carve a passage between two cells
- * This removes the wall between start and end positions
- */
-void carvePassage(vector<string>& maze, int startRow, int startCol, int endRow, int endCol) {
-    // Carve the destination cell
-    maze[endRow][endCol] = ' ';
-    
-    // Carve the wall between start and end (the cell in the middle)
-    int wallRow = (startRow + endRow) / 2;
-    int wallCol = (startCol + endCol) / 2;
-    maze[wallRow][wallCol] = ' ';
-}
+// Recursive maze generation using backtracking
+void generateMaze(vector<string>& dungeon, int row, int col, int rows, int cols, mt19937& rng) {
+    vector<pair<int, int>> dirs = DIRECTIONS;
+    shuffle(dirs.begin(), dirs.end(), rng);
 
-/**
- * Helper function: Get all valid unvisited neighbors
- * Returns list of cells that can be carved to (2 steps away and not yet carved)
- */
-vector<pair<int, int>> getUnvisitedNeighbors(const vector<string>& maze, int row, int col) {
-    vector<pair<int, int>> neighbors;
-    int rows = maze.size();
-    int cols = maze[0].size();
-    
-    // Check all 4 directions (2 steps away)
-    for (int i = 0; i < 4; i++) {
-        int newRow = row + CARVE_DIRECTIONS[i][0];
-        int newCol = col + CARVE_DIRECTIONS[i][1];
-        
-        if (isInBounds(newRow, newCol, rows, cols) && !isCarved(maze, newRow, newCol)) {
-            neighbors.push_back({newRow, newCol});
-        }
-    }
-    
-    return neighbors;
-}
+    for (const auto& dir : dirs) {
+        int newRow = row + dir.first;
+        int newCol = col + dir.second;
 
-/**
- * Helper function: Shuffle a vector randomly
- */
-template<typename T>
-void shuffleVector(vector<T>& vec) {
-    shuffle(vec.begin(), vec.end(), rng);
-}
-
-/**
- * TODO: Implement recursive backtracking maze carving
- * 
- * ALGORITHM:
- * 1. Mark current cell as carved (set to ' ')
- * 2. Get all unvisited neighbors (2 steps away)
- * 3. Shuffle the neighbors for randomness
- * 4. For each neighbor:
- *    - If unvisited, carve passage to it and recurse
- * 
- * COORDINATE SYSTEM:
- * - Odd coordinates (1,1), (1,3), (3,1) etc. are potential room centers
- * - Even coordinates are walls between rooms
- * - We carve passages between odd coordinates
- * 
- * HINTS:
- * - Use the helper functions provided above
- * - Base case: no unvisited neighbors (backtrack naturally)
- * - Remember to carve both the destination AND the wall between
- */
-void recursiveBacktrack(vector<string>& maze, int row, int col) {
-    // Mark current cell as carved
-    maze[row][col] = ' ';
-    
-    // YOUR CODE HERE:
-    // 1. Get unvisited neighbors using getUnvisitedNeighbors()
-    // 2. Shuffle them using shuffleVector()
-    // 3. For each neighbor, if it's still unvisited:
-    //    - Carve passage using carvePassage()
-    //    - Recursively call recursiveBacktrack() on neighbor
-    
-    // TODO: Implement the recursive backtracking logic
-    // Remember: The helper functions above handle the tricky coordinate math!
-    
-    // ==================== REMOVE THIS SAFETY CODE WHEN IMPLEMENTING ====================
-    // SAFETY: This prevents hanging when the function isn't implemented yet
-    cout << "TODO: recursiveBacktrack() not yet implemented!" << endl;
-    return;  // <- REMOVE THIS LINE when you implement the algorithm
-    // ==================== END SAFETY CODE TO REMOVE ====================
-}
-
-/**
- * Helper function: Add random rooms to the maze
- * Punches holes in walls to create larger open areas
- */
-void addRandomRooms(vector<string>& maze, int roomRate) {
-    int rows = maze.size();
-    int cols = maze[0].size();
-    
-    // Calculate how many rooms to add based on roomRate percentage
-    int totalWalls = (rows * cols) / 4;  // Rough estimate of wall cells
-    int roomsToAdd = (totalWalls * roomRate) / 100;
-    
-    for (int i = 0; i < roomsToAdd; i++) {
-        int row = 2 + (rng() % (rows - 4));  // Avoid borders
-        int col = 2 + (rng() % (cols - 4));
-        
-        // Only carve if it's currently a wall
-        if (maze[row][col] == '#') {
-            maze[row][col] = ' ';
+        if (isValidCell(newRow, newCol, rows, cols) && dungeon[newRow][newCol] == '#') {
+            carvePassage(dungeon, row, col, newRow, newCol);
+            generateMaze(dungeon, newRow, newCol, rows, cols, rng);
         }
     }
 }
 
-/**
- * Helper function: Place start and exit positions
- * Finds two open cells that are far apart and places S and E
- */
-void placeStartAndExit(vector<string>& maze) {
-    vector<pair<int, int>> openCells;
-    int rows = maze.size();
-    int cols = maze[0].size();
-    
-    // Find all open cells
-    for (int r = 1; r < rows - 1; r++) {
-        for (int c = 1; c < cols - 1; c++) {
-            if (maze[r][c] == ' ') {
-                openCells.push_back({r, c});
+// Main function: generates the dungeon grid
+vector<string> generateDungeon(int rows, int cols, int roomRate) {
+    if (rows % 2 == 0) rows++;  // ensure odd size
+    if (cols % 2 == 0) cols++;
+
+    vector<string> dungeon(rows, string(cols, '#'));
+
+    mt19937 rng(static_cast<unsigned int>(time(nullptr)));
+    dungeon[1][1] = ' ';  // Start carving from top-left
+
+    generateMaze(dungeon, 1, 1, rows, cols, rng);
+
+    // Add extra rooms based on roomRate percentage
+    int totalCells = ((rows - 1) / 2) * ((cols - 1) / 2);
+    int extraRooms = totalCells * roomRate / 100;
+
+    for (int i = 0; i < extraRooms; ++i) {
+        int r = rng() % rows;
+        int c = rng() % cols;
+        if (dungeon[r][c] == '#' && r % 2 == 1 && c % 2 == 1) {
+            dungeon[r][c] = ' ';
+        }
+    }
+
+    // Place start 'S' and exit 'E'
+    dungeon[1][1] = 'S';
+
+    // Find a suitable place for 'E' (searching from bottom right)
+    for (int r = rows - 2; r > 0; --r) {
+        for (int c = cols - 2; c > 0; --c) {
+            if (dungeon[r][c] == ' ') {
+                dungeon[r][c] = 'E';
+                return dungeon;
             }
         }
     }
-    
-    if (openCells.size() < 2) {
-        cout << "Warning: Not enough open cells for start/exit placement!" << endl;
-        return;
-    }
-    
-    // Place start at first open cell
-    maze[openCells[0].first][openCells[0].second] = 'S';
-    
-    // Place exit at last open cell (likely far from start)
-    maze[openCells.back().first][openCells.back().second] = 'E';
-}
 
-std::vector<std::string> generateDungeon(int rows, int cols, int roomRate) {
-    // Ensure odd dimensions for proper maze structure
-    if (rows % 2 == 0) rows++;
-    if (cols % 2 == 0) cols++;
-    
-    // Minimum size check
-    if (rows < 5 || cols < 5) {
-        rows = max(rows, 5);
-        cols = max(cols, 5);
-    }
-    
-    // Initialize maze with all walls
-    vector<string> maze(rows, string(cols, '#'));
-    
-    // TODO: Start recursive backtracking from position (1,1)
-    // Position (1,1) ensures we start at an odd coordinate (proper cell center)
-    // YOUR CODE HERE: Call recursive backtracking
-    
-    // Add random rooms (provided)
-    addRandomRooms(maze, roomRate);
-    
-    // Place start and exit (provided)
-    placeStartAndExit(maze);
-    
-    return maze;
-    
-    // DEBUGGING TIPS:
-    // 1. Test with small sizes first (7x7 or 9x9)
-    // 2. Print the maze to see if passages look right
-    // 3. Check that most cells are reachable
-    // 4. Verify start 'S' and exit 'E' are placed properly
+    // Fallback exit placement
+    dungeon[rows - 2][cols - 2] = 'E';
+    return dungeon;
 }
